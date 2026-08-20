@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: hospital-management-dbms
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: DATABASE_URL
+        sync: false

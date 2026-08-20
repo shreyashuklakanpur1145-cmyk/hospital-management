@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hospital Management System | DBMS</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:#f3f6fb;color:#172033}
+header{background:#14213d;color:white;padding:26px 5%;display:flex;justify-content:space-between;align-items:center}
+header h1{margin:0;font-size:26px} header span{opacity:.8}
+.container{max-width:1200px;margin:28px auto;padding:0 20px}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}.card{background:white;border-radius:14px;padding:20px;box-shadow:0 5px 18px #0000000b}.num{font-size:30px;font-weight:700;margin-top:7px}
+.grid{display:grid;grid-template-columns:1fr 2fr;gap:18px;margin-top:20px}
+h2{margin-top:0;font-size:20px}.form{display:grid;gap:10px}input,select,button{width:100%;padding:11px;border:1px solid #d7dce5;border-radius:8px;font-size:14px}
+button{border:0;background:#1769e0;color:#fff;cursor:pointer;font-weight:600}.danger{background:#d63b3b}.success{background:#198754}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:10px;border-bottom:1px solid #e6e9ef;text-align:left}th{background:#f7f8fb}
+.badge{padding:4px 8px;border-radius:99px;background:#e9eefc}.logs,.bills{margin-top:20px}.msg{margin-top:10px;min-height:20px;font-weight:600}
+@media(max-width:850px){.cards{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}.container{padding:0 12px}}
+</style>
+</head>
+<body>
+<header><div><h1>🏥 Hospital Management System</h1><span>DBMS Mini Project — CRUD • JOINs • Triggers</span></div></header>
+<div class="container">
+<section class="cards">
+<div class="card">Patients<div class="num" id="patients">-</div></div>
+<div class="card">Doctors<div class="num" id="doctors">-</div></div>
+<div class="card">Appointments<div class="num" id="appointments">-</div></div>
+<div class="card">Bills<div class="num" id="billsCount">-</div></div>
+</section>
+
+<div class="grid">
+<div class="card">
+<h2>Book Appointment — CREATE</h2>
+<div class="form">
+<input id="pname" placeholder="Patient name">
+<input id="age" type="number" min="0" max="120" placeholder="Age">
+<select id="gender"><option>Male</option><option>Female</option><option>Other</option></select>
+<input id="phone" placeholder="Phone">
+<select id="doctor"></select>
+<input id="date" type="datetime-local">
+<button onclick="createAppointment()">Book Appointment</button>
+<div class="msg" id="msg"></div>
+</div>
+</div>
+
+<div class="card">
+<h2>Appointments — READ + SQL JOIN</h2>
+<table><thead><tr><th>ID</th><th>Patient</th><th>Doctor</th><th>Department</th><th>Date</th><th>Status</th><th>Action</th></tr></thead>
+<tbody id="appt"></tbody></table>
+</div>
+</div>
+
+<div class="card logs">
+<h2>Database Audit Logs — TRIGGER Verification</h2>
+<table><thead><tr><th>Log ID</th><th>Appointment</th><th>Action</th><th>Time</th></tr></thead><tbody id="logs"></tbody></table>
+</div>
+
+<div class="card bills">
+<h2>Auto-Generated Bills — TRIGGER Verification</h2>
+<table><thead><tr><th>Bill</th><th>Patient</th><th>Doctor</th><th>Consultation Fee</th><th>Total</th><th>Created</th></tr></thead><tbody id="billTable"></tbody></table>
+</div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+async function api(url,opt){const r=await fetch(url,opt);const d=await r.json();if(!r.ok)throw Error(d.error||"Request failed");return d}
+async function load(){
+ try{
+  const [stats,docs,apps,logs,bills]=await Promise.all([
+   api('/api/stats'),api('/api/doctors'),api('/api/appointments'),api('/api/logs'),api('/api/bills')
+  ]);
+  $('patients').textContent=stats.patients;$('doctors').textContent=stats.doctors;
+  $('appointments').textContent=stats.appointments;$('billsCount').textContent=stats.bills;
+  $('doctor').innerHTML=docs.map(d=>`<option value="${d.doctor_id}">${d.name} — ${d.specialization}</option>`).join('');
+  $('appt').innerHTML=apps.map(a=>`<tr><td>${a.appointment_id}</td><td>${a.patient_name}</td><td>${a.doctor_name}</td><td>${a.department}</td><td>${a.appointment_date}</td><td><span class="badge">${a.status}</span></td><td>
+  ${a.status==='Scheduled'?`<button class="success" onclick="complete(${a.appointment_id})">Complete</button>`:''}
+  <button class="danger" onclick="del(${a.appointment_id})">Delete</button></td></tr>`).join('');
+  $('logs').innerHTML=logs.map(l=>`<tr><td>${l.log_id}</td><td>${l.appointment_id}</td><td>${l.action}</td><td>${l.log_time}</td></tr>`).join('');
+  $('billTable').innerHTML=bills.map(b=>`<tr><td>${b.bill_id}</td><td>${b.patient_name}</td><td>${b.doctor_name}</td><td>₹${b.consultation_fee}</td><td>₹${b.total_amount}</td><td>${b.created_at}</td></tr>`).join('');
+ }catch(e){$('msg').textContent=e.message}
+}
+async function createAppointment(){
+ $('msg').textContent='';
+ try{
+  await api('/api/appointments',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+   patient_name:$('pname').value,age:$('age').value,gender:$('gender').value,phone:$('phone').value,
+   doctor_id:$('doctor').value,appointment_date:$('date').value
+  })});
+  $('msg').textContent='Appointment created successfully.';document.querySelectorAll('input').forEach(x=>x.value='');load();
+ }catch(e){$('msg').textContent=e.message}
+}
+async function complete(id){try{await api('/api/appointments/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'Completed'})});load()}catch(e){alert(e.message)}}
+async function del(id){if(!confirm('Delete this appointment?'))return;try{await api('/api/appointments/'+id,{method:'DELETE'});load()}catch(e){alert(e.message)}}
+load();
+</script>
+</body>
+</html>
